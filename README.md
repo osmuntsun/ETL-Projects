@@ -30,3 +30,4 @@ git clone https://github.com/<你的帳號>/ETL-projects.git
 pip install -r requirements.txt
 
 執行程式:
+python XXX.py
