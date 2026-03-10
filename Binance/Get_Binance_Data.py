@@ -13,7 +13,6 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 def get_klines(symbol, interval, timeZone='+8:00', limit=500):
     req = requests.Session()
     '''
-
     來源: https://developers.binance.com/docs/zh-CN/binance-spot-api-docs/rest-api/market-data-endpoints#k%E7%BA%BF%E6%95%B0%E6%8D%AE
     /api/v3/klines K棒數據
     預設抓取最近500筆資料，最多可抓取1000筆資料
@@ -97,6 +96,11 @@ def get_latest_timestamp(symbol):
 
 # 獲取最新的時間戳，這將用於確定從何時開始抓取新的K線數據
 latest_timestamp = get_latest_timestamp("BTCUSDT")
+
+data = get_klines("BTCUSDT", "1h", timeZone='+8:00', limit=1000)
+# 將每筆K線數據存入資料庫，這裡 i 是每個 K 線項目，如 [timestamp, open, high, low, close, volume]
+for i in data:
+    save_data_to_db("BTCUSDT", i)
 
 # 計算從最新的時間戳到現在的時間差，並將其轉換為小時數
 time_diff = datetime.datetime.now() - latest_timestamp
