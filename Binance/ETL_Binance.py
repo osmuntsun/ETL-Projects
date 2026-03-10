@@ -2,6 +2,12 @@ import requests
 import psycopg2
 from psycopg2 import errors
 import datetime
+import os
+from dotenv import load_dotenv
+
+# 從環境變數讀取敏感資料
+load_dotenv()  # 從 .env 文件加載環境變數
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 # get_klines 返回的是列表：[[timestamp, open, high, low, close, volume, ...], ...]
 def get_klines(symbol, interval, timeZone='+8:00', limit=500):
@@ -35,7 +41,7 @@ def save_data_to_db(symbol,data):
         host="localhost",
         database="Binance_DB",
         user="postgres",
-        password="password"
+        password=DB_PASSWORD
     )
 
     cursor = conn.cursor()
@@ -60,7 +66,7 @@ def save_data_to_db(symbol,data):
         ))
         conn.commit()
     except errors.UniqueViolation:
-        print(f"已有資料: {symbol} - {dt}")
+        # print(f"已有資料: {symbol} - {dt}")
         conn.rollback() # 發生錯誤時回滾事務，確保資料庫保持一致性
     except Exception as e:
         print(f"插入失敗: {e}")
@@ -69,9 +75,39 @@ def save_data_to_db(symbol,data):
         cursor.close()
         conn.close()
     
+def get_latest_timestamp(symbol):
+    conn = psycopg2.connect(
+        host="localhost",
+        database="Binance_DB",
+        user="postgres",
+        password=DB_PASSWORD
+    )
+    cursor = conn.cursor()
+    query = """
+    SELECT MAX(timestamp) FROM futures_market_data WHERE symbol = %s   
+    """
+    cursor.execute(query, (symbol,))
+    # 獲取最新的時間戳，如果資料庫中沒有該交易對的資料，則返回 None
+    latest_timestamp = cursor.fetchone()[0] 
+    if latest_timestamp is None:
+        latest_timestamp = datetime.datetime(2026, 1, 1) # 如果沒有資料，則從2020年1月1日開始抓取
+    cursor.close()
+    conn.close()
+    return latest_timestamp
 
-# 獲得K線數據
-data = get_klines("BTCUSDT", "1h", timeZone='+8:00', limit=200)
-# 將每筆K線數據存入資料庫，這裡 i 是每個 K 線項目，如 [timestamp, open, high, low, close, volume]
-for i in data:
-    save_data_to_db("BTCUSDT", i)
+# 獲取最新的時間戳，這將用於確定從何時開始抓取新的K線數據
+latest_timestamp = get_latest_timestamp("BTCUSDT")
+
+# 計算從最新的時間戳到現在的時間差，並將其轉換為小時數
+time_diff = datetime.datetime.now() - latest_timestamp
+
+if time_diff.total_seconds() < 3600: # 如果時間差小於1小時，則不需要抓取新的數據
+    print("時間差小於1小時，不需要抓取新的數據")
+else:
+    # 獲得K線數據
+    limits = min(int(time_diff.total_seconds() // 3600), 1000) # 計算需要抓取的K線數量，最多不超過1000
+    data = get_klines("BTCUSDT", "1h", timeZone='+8:00', limit=limits)
+    # 將每筆K線數據存入資料庫，這裡 i 是每個 K 線項目，如 [timestamp, open, high, low, close, volume]
+    for i in data:
+        save_data_to_db("BTCUSDT", i)
+
