@@ -23,7 +23,7 @@ API 整合與資料庫管理
 
 clone 專案：
 
-git clone https://github.com/<你的帳號>/ETL-projects.git
+git clone https://github.com/osmuntsun/ETL-Projects.git
 
 安裝依賴：
 
